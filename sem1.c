@@ -4,7 +4,7 @@
 
 int main()
 {
-printf("User id is %d \n", getpid());
-printf("Group id is %d", getppid());
+printf("User id is %d \n", getuid());
+printf("Group id is %d", getgid());
 return 0;
 }
