@@ -1,36 +1,25 @@
-
 #include <sys/types.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/stat.h>
 #include <unistd.h>
-#include <limits.h>
-int main()
-{
-    int     fd;
-    (void)umask(0);
-    if ((fd = open("myfile1", O_WRONLY | O_CREAT, 0666)) < 0) {
-        printf("Can\'t open file\n");
+#include <stdio.h>
+#include <signal.h>
+#include <fcntl.h>
+#include <stdlib.h>
+int main() {
+    int fp[2];
+    size_t size = 1;
+    int counter = 0;
+
+    if (pipe(fp) < 0) {
+        printf("Cannot create pipe\n");
         exit(-1);
     }
-    long  size = 0;
-    long j = 1;
-    long sizee=0;
-    char str[65536] = ".";
-    while (size !=-1)
-    {
-     
-        size = write(fd, str, j);
-        if (size > sizee)
-            sizee = (long)size;
-       
-        j = j*2;
 
+    fcntl(fp[1], F_SETFL, fcntl(fp[1], F_GETFL) | O_NONBLOCK);
+
+    while (size == 1) {
+        size = write(fp[1], "a", 1);
+        counter++;
     }
-    printf("Buffer MAX size is %ld\n", sizee);
-    if (close(fd) < 0) {
-        printf("Can\'t close file\n");
-    }
+    printf("Pipe max size is %d\n", counter);
     return 0;
 }
