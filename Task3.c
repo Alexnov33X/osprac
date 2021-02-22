@@ -1,16 +1,36 @@
+
 #include <sys/types.h>
-#include <unistd.h>
+#include <fcntl.h>
 #include <stdio.h>
-int main(int argc, char* argv[], char* envp[])
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <limits.h>
+int main()
 {
-	for (int i=0; i<argc; i++)
-		printf("Argument # %d is %s\n", i, argv[i]);
-	printf("Environment values are: \n");
-	int i = 0;
-	while (envp[i]!=NULL)
-	{
-		printf("%s \n",envp[i]);
-		i++;
-	}
-	return 0;
+    int     fd;
+    (void)umask(0);
+    if ((fd = open("myfile1", O_WRONLY | O_CREAT, 0666)) < 0) {
+        printf("Can\'t open file\n");
+        exit(-1);
+    }
+    long  size = 0;
+    long j = 1;
+    long sizee=0;
+    char str[65536] = ".";
+    while (size !=-1)
+    {
+     
+        size = write(fd, str, j);
+        if (size > sizee)
+            sizee = (long)size;
+       
+        j = j*2;
+
+    }
+    printf("Buffer MAX size is %ld\n", sizee);
+    if (close(fd) < 0) {
+        printf("Can\'t close file\n");
+    }
+    return 0;
 }
