@@ -7,14 +7,20 @@
 
 int main()
 {
-
+    //Описание работы
+    //Сначала семафор инициализируется с 1
+    //Затем в Родителе:
+    //Сначала проверка D(0,1), потом
+    //Запись -> A(0,1) -> Z -> D(0,1) - > чтение
+    //В ребёнке:
+    // D(0,2) -> чтение -> запись -> A(0,1)
 
 
     int     fd[2], result;
-    int     communications_count; 
-    key_t   key;                  
-    int     semid;                
-    struct  sembuf mybuf;         
+    int     communications_count; //счётчик N
+    key_t   key;                  //ключ IPC
+    int     semid;                //IPC декриптор для семафора
+    struct  sembuf mybuf;         //структура для операций над семафором
     char    pathname[] = "lab10.c";
     size_t  size;
     char    resstring[15];
