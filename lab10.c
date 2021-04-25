@@ -3,33 +3,29 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/ipc.h>
+#include <sys/shm.h>
 #include <sys/sem.h>
-
 int main()
 {
-    /*
-    * The semaphore is initialized with 1 at start.
-    * Parent: D(0, 1) -> in for loop:
-    *       write -> A(0, 1) -> Z -> D(0, 1) -> read
-    * Child: in for loop:
-    *       D(0, 2) -> read -> write -> A(0, 1)
-    */
-
-
+    /* Инициализируем семафор и сразу увеличиваем на 1 (можно считать, что инициализируем с 1)
+     * Родитель: уменьшаем семафор на 1 (D(S, 1))
+     * записываем (write), Увеличиваем на 2 (A(S, 2)), ждем пока будет 0 (Z(S)), уменьшаем на 1 (D(S, 1)), читаем (read).
+     * Ребенок: уменьшаем на 2 (D(S,2)), читаем (read), записываем(write), увеличиваем на 1(A(S,1)).
+     */
     int     fd[2], result;
-    int     communications_count; // This is N.
-    key_t   key;                  // The IPC key.
-    int     semid;                // IPC descriptor for an array of IPC semaphores
-    struct  sembuf mybuf;         // Structure for specifying operations on a semaphore.
-    char    pathname[] = "lab10.c";
-    size_t  size;
-    char    resstring[15];
+    int N;
+    key_t key;
+    char pathname[] = "lab10.c";
+    int semid;
+    struct sembuf buf;
+    size_t size;
+    char  resstring[14];
 
     printf("Enter N>1: \n");
 
-    scanf("%d", &communications_count);
+    scanf("%d", &N);
 
-    if (communications_count < 2) {
+    if (N < 2) {
         printf("N should be >1.\n");
         exit(-1);
     }
@@ -39,139 +35,125 @@ int main()
     }
 
     if ((key = ftok(pathname, 0)) < 0) {
-        printf("Impossible to generate the key\n");
+        printf("Can\'t generate key\n");
         exit(-1);
     }
 
-    if ((semid = semget(key, 1, 0666 | IPC_CREAT)) < 0) {
-        printf("Error: impossible to create the semaphore\n");
+    if ((semid = semget(key, 1, 0666 | IPC_CREAT)) < 0)
+    {
+        printf("Can not create new semaphore\n");
         exit(-1);
     }
 
-    mybuf.sem_num = 0;
-    mybuf.sem_op = 1;
-    mybuf.sem_flg = 0;
+    buf.sem_num = 0;
+    buf.sem_op = 1;
+    buf.sem_flg = 0;
 
-    if (semop(semid, &mybuf, 1) < 0) {
-        printf("Can\'t set initial semaphore value as 1\n");
+    if (semop(semid, &buf, 1) < 0) {
+        printf("Can not wait for condition\n");
         exit(-1);
     }
 
     result = fork();
 
     if (result < 0) {
-        printf("Can\'t fork the child\n");
+        printf("Can\'t fork child\n");
         exit(-1);
+
     }
     else if (result > 0) {
+        /* Parent process */
 
-        /* Процесс родителя */
+        buf.sem_num = 0;
+        buf.sem_op = -1;
+        buf.sem_flg = 0;
 
-        mybuf.sem_num = 0;
-        mybuf.sem_op = -1;
-        mybuf.sem_flg = 0;
-
-        if (semop(semid, &mybuf, 1) < 0) {
-            printf("Can\'t decrease semaphore value by 1\n");
+        if (semop(semid, &buf, 1) < 0) {
+            printf("Can not wait for condition\n");
             exit(-1);
         }
 
-        for (int i = 0; i < communications_count; ++i) {
-            size = write(fd[1], "Hello, child!", 14);
+        for (int i = 0; i < N; i++) {
+            size = write(fd[1], "Hello, world!", 14);
 
             if (size != 14) {
-                printf("Parent: unable to write all the chars to the pipe\n");
+                printf("Can\'t write all string to pipe\n");
+                exit(-1);
+            }
+            buf.sem_num = 0;
+            buf.sem_op = 2;
+            buf.sem_flg = 0;
+
+            if (semop(semid, &buf, 1) < 0) {
+                printf("Can not wait for condition\n");
                 exit(-1);
             }
 
-            mybuf.sem_num = 0;
-            mybuf.sem_op = 2;
-            mybuf.sem_flg = 0;
+            buf.sem_num = 0;
+            buf.sem_op = 0;
+            buf.sem_flg = 0;
 
-            if (semop(semid, &mybuf, 1) < 0) {
-                printf("Parent: Can\'t enter the critical section properly\n");
-                exit(-1);
-            }
-            mybuf.sem_num = 0;
-            mybuf.sem_op = 0;
-            mybuf.sem_flg = 0;
-
-            if (semop(semid, &mybuf, 1) < 0) {
-                printf("Parent: Can\'t enter the critical section properly\n");
+            if (semop(semid, &buf, 1) < 0) {
+                printf("Can not wait for condition\n");
                 exit(-1);
             }
 
-            mybuf.sem_num = 0;
-            mybuf.sem_op = -1;
-            mybuf.sem_flg = 0;
+            buf.sem_num = 0;
+            buf.sem_op = -1;
+            buf.sem_flg = 0;
 
-            if (semop(semid, &mybuf, 1) < 0) {
-                printf("Can\'t enter the critical section properly in program A.\n");
+            if (semop(semid, &buf, 1) < 0) {
+                printf("Can not wait for condition\n");
                 exit(-1);
             }
-
-            size = read(fd[0], resstring, 15);
-
+            size = read(fd[0], resstring, 14);
             if (size < 0) {
-                printf("Can\'t read string from pipe\n");
+                printf("Can not read string from pipe\n");
                 exit(-1);
             }
-
-            printf("Parent: read the string: %s\n", resstring);
+            printf("Parent read: %s\n", resstring);
         }
-
-
-        printf("Parent finished its job.\n");
-
+        printf("Parent exit\n");
     }
     else {
+        /* Child process */
+        for (int i = 0; i < N; i++) {
+            buf.sem_num = 0;
+            buf.sem_op = -2;
+            buf.sem_flg = 0;
 
-        /* Процесс ребёнка */
-        for (int i = 0; i < communications_count; ++i) {
-
-            mybuf.sem_num = 0;
-            mybuf.sem_op = -2;
-            mybuf.sem_flg = 0;
-
-            if (semop(semid, &mybuf, 1) < 0) {
-                printf("Can\'t enter the critical section properly.\n");
+            if (semop(semid, &buf, 1) < 0) {
+                printf("Can not wait for condition\n");
                 exit(-1);
             }
 
             size = read(fd[0], resstring, 14);
 
             if (size < 0) {
-                printf("Child: Impossible to read the string from the pipe.\n");
+                printf("Child Can not read string from pipe\n");
                 exit(-1);
             }
-
-            printf("Child: read the string: %s\n", resstring);
-
-            size = write(fd[1], "Hello, parent!", 15);
-
-            if (size != 15) {
-                printf("Child: unable to write all the chars to the pipe.\n");
+            printf("child read: %s\n", resstring);
+            size = write(fd[1], "World, hello!", 14);
+            if (size < 14) {
+                printf("Child Can not write string to pipe\n");
                 exit(-1);
             }
-
-            mybuf.sem_num = 0;
-            mybuf.sem_op = 1;
-            mybuf.sem_flg = 0;
-
-            if (semop(semid, &mybuf, 1) < 0) {
-                printf("Can\'t enter the critical section properly.\n");
+            buf.sem_num = 0;
+            buf.sem_op = 1;
+            buf.sem_flg = 0;
+            if (semop(semid, &buf, 1) < 0) {
+                printf("Can not wait for condition\n");
                 exit(-1);
             }
         }
         if (close(fd[0]) < 0) {
-            printf("Child: Can\'t close reading side of pipe\n");
-            exit(-1);
+            printf("child: Can\'t close reading side of pipe\n"); exit(-1);
         }
         if (close(fd[1]) < 0) {
-            printf("Child: Can\'t close writing side of pipe\n");
-            exit(-1);
+            printf("child: Can\'t close writing side of pipe\n"); exit(-1);
         }
+        printf("Child exit");
     }
-
     return 0;
 }
