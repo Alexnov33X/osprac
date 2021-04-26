@@ -3,67 +3,60 @@
 #include <sys/msg.h>
 #include <string.h>
 #include <stdio.h>
-#include <stdlib.h>
 
-#define LAST_MESSAGE 255
-
-int main(void)
-{
+int main() {
     int msqid;
+
     char pathname[] = "lab11-2a.c";
-    key_t  key;
+
+    key_t key;
+
     int len, maxlen;
 
     struct mymsgbuf {
         long mtype;
         struct {
-            char cinfo;
-            int iinfo;
+            short sinfo;
         } info;
     } mybuf;
 
     if ((key = ftok(pathname, 0)) < 0) {
-        printf("Can\'t generate key\n");
-        exit(-1);
+        printf("Cannot generate key\n");
+        return -1;
     }
 
     if ((msqid = msgget(key, 0666 | IPC_CREAT)) < 0) {
-        printf("Can\'t get msqid\n");
-        exit(-1);
+        printf("Cannot get msqid\n");
+        return -1;
     }
 
-    const char  chars[] = { 'a', 'b', 'c', 'd', 'e' };
-    const int   nums[] = { 1, 2, 3, 4, 5 };
-
-    int i = -1;
-    while (1) {
-        ++i;
+    printf("program 2 start receiving\n");
+    for (int i = 0; i < 5; ++i) {
         maxlen = sizeof(mybuf.info);
-
-        if ((len = msgrcv(msqid, (struct msgbuf*)&mybuf, maxlen, 1, 0)) < 0) {
-            printf("Can\'t receive message from queue\n");
-            exit(-1);
+        if (msgrcv(msqid, (struct msgbuf*)&mybuf, maxlen, 1, 0) < 0) {
+            printf("Cannotreceive message from queue\n");
+            return -1;
         }
 
-        printf("B received: message type = %ld, char = %c, number = %d\n", mybuf.mtype, mybuf.info.cinfo, mybuf.info.iinfo);
+        printf("program 2 received: type = %ld, sInfo = %i\n", mybuf.mtype, mybuf.info.sinfo);
+    }
 
+    printf("program 2 finished receiving\n");
+    printf("program 2 start sending\n");
 
-        if (mybuf.mtype == LAST_MESSAGE) {
-            msgctl(msqid, IPC_RMID, (struct msqid_ds*)NULL); //remove when LAST_MESSAGE TYPE is recieved
-            exit(0);
-        }
-
+    for (int i = 0; i < 5; ++i) {
         mybuf.mtype = 2;
-        mybuf.info.cinfo = chars[i];
-        mybuf.info.iinfo = nums[i];
+        mybuf.info.sinfo = 2222 + i;
         len = sizeof(mybuf.info);
 
         if (msgsnd(msqid, (struct msgbuf*)&mybuf, len, 0) < 0) {
-            printf("Can\'t send message to queue\n");
+            printf("Cannot send message to queue\n");
             msgctl(msqid, IPC_RMID, (struct msqid_ds*)NULL);
-            exit(-1);
+            return -1;
         }
     }
+
+    printf("program 2 finished sending\n");
 
     return 0;
 }
