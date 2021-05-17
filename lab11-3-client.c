@@ -5,80 +5,74 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <time.h>
 
-struct mymsgbuf // Custom structure for the message
+/**
+ *  Client
+ */
+struct client
+{
+    long mtype;
+    struct
+    {
+        pid_t pid;
+        float message;
+    } info;
+} clientbuf;
+
+struct server
 {
     long mtype;
     struct {
-        double mvalue;
-        long msender;
+        float message;
     } info;
-} mybuf;
+} serverbuf;
 
-void send_request(int msqid, double value, long sender) {
-    mybuf.mtype = 1;
-    mybuf.info.mvalue = value;
-    mybuf.info.msender = sender;
-    //
-    // Send the message. If there is an error,
-    // report it and delete the message queue from the system.
-    //
-    if (msgsnd(msqid, (struct msgbuf*)&mybuf, sizeof(mybuf.info), 0) < 0) {
-        printf("Can\'t send request to server\n");
-        msgctl(msqid, IPC_RMID, (struct msqid_ds*)NULL);
-        exit(-1);
-    }
-}
-
-void receive_response(int msqid, long client) {
-    if (msgrcv(msqid, (struct msgbuf*)&mybuf, sizeof(mybuf.info), client, 0) < 0) {
-        printf("Can\'t receive response from server\n");
-        exit(-1);
-    }
-}
 
 int main(void)
 {
     int msqid;
     char pathname[] = "lab11-3-server.c";
     key_t  key;
-    long pid;
-    double value;
-    int scanf_result;
-    char garbage[50];
-
-    pid = (long)getpid();
+    int len, maxlen;
 
     if ((key = ftok(pathname, 0)) < 0) {
         printf("Can\'t generate key\n");
         exit(-1);
     }
 
-    if ((msqid = msgget(key, 0666)) < 0) {
-        printf("Can\'t get connect to server\n");
+    if ((msqid = msgget(key, 0666 | IPC_CREAT)) < 0) {
+        printf("Can\'t get msqid\n");
         exit(-1);
     }
 
-    while (1) {
-        printf("Please, enter floating point value:\n");
-        scanf_result = scanf("%lf", &value);
+    // Инициализируем клиента
+    clientbuf.mtype = 1;
+    clientbuf.info.pid = getpid();
 
-        if (scanf_result <= 0) {
-            printf("Wrong input\n");
-            scanf("%s", garbage);
-            continue;
+    float msg;
+    while (1)
+    {
+        printf("Enter float: ");
+        scanf("%f", &msg);
+        clientbuf.info.message = msg;
+
+        printf("Client send type = %d message = '%f'\n", clientbuf.mtype, clientbuf.info.message);
+
+        len = sizeof(clientbuf.info);
+        if (msgsnd(msqid, &clientbuf, len, 0) < 0) {
+            printf("Can\'t send message to queue\n");
+            msgctl(msqid, IPC_RMID, (struct msqid_ds*)NULL);
+            exit(-1);
         }
 
-        // Using pid as message type
-        send_request(msqid, value, pid);
+        printf("Waiting for server...\n");
 
-        if (value == 0) {
-            exit(0);
+        if (msgrcv(msqid, &serverbuf, sizeof(serverbuf.info), getpid(), 0) < 0) {
+            printf("Can\'t receive message from queue\n");
+            exit(-1);
         }
-
-        receive_response(msqid, pid);
-
-        printf("Server responded with value %lf\n", mybuf.info.mvalue);
+        printf("Server answered: %f\n", serverbuf.info.message);
     }
 
     return 0;
